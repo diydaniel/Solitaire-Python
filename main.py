@@ -22,7 +22,7 @@ def run_one_game_session(screen):
                 game.handle_event(e)
 
         # If you have an update method, call it here:
-        # game.update(dt)
+        game.update(dt)
 
         game.draw()
         pg.display.flip()
@@ -31,12 +31,12 @@ def run_one_game_session(screen):
 def main():
     pg.init()
     screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pg.display.set_caption("Solitaire")
+    pg.display.set_caption("Solitaire") # --- Title at top grey bar
 
     app_running = True
     while app_running:
         # Show menu
-        menu = Menu(screen, title="Solitaire")
+        menu = Menu(screen)
         choice = menu.run()
 
         if choice == MenuResult.START:

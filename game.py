@@ -11,6 +11,7 @@ from config import (
     STOCK_POS, WASTE_POS,
     FOUND_SUITS, SUIT_COLOR,
 )
+from animations import WinAnimation
 from assets import load_card_images, load_card_back
 from model import Card
 
@@ -45,6 +46,7 @@ class Game:
         # assets
         self.card_images = load_card_images()
         self.card_back = load_card_back()
+        self.win_anim: WinAnimation | None = None
 
         # piles
         self.tableau: List[List[Card]] = [[] for _ in range(7)]
@@ -95,6 +97,7 @@ class Game:
         random.shuffle(self.deck)
         for col in self.tableau: col.clear()
         for f in self.foundations: f.clear()
+        self.win_anim = None
         self.waste.clear()
         self.stock.clear()
         self.deal_cards()
@@ -114,12 +117,65 @@ class Game:
                 y += h
         return (-1, -1)
     
+    #--- Win animation ---
+    def _is_win(self) -> bool:
+        """Win if all 4 foundations are complete (13 each)."""
+        return all(len(pile) == 13 for pile in self.foundations)
+
+    def _snapshot_visible_cards(self) -> list[tuple[pygame.Surface, pygame.Rect]]:
+        """
+        Build (image, rect) tuples using the same coordinates as draw_*().
+        We DO NOT mutate live rects—use fresh pygame.Rects at draw positions.
+        """
+        cards: list[tuple[pygame.Surface, pygame.Rect]] = []
+
+        # Foundations (all cards in the stack; they overlap at the same spot)
+        for i, pile in enumerate(self.foundations):
+            x = FOUND_X0 + i * FOUND_GAP_X
+            y = FOUND_Y0
+            for c in pile:
+                img = c.image if c.face_up else self.card_back
+                cards.append((img, pygame.Rect(x, y, *CARD_SIZE)))
+
+        # Waste (you only draw the top card; include just that)
+        if self.waste:
+            img = self.waste[-1].image if self.waste[-1].face_up else self.card_back
+            cards.append((img, pygame.Rect(*WASTE_POS, *CARD_SIZE)))
+
+        # Tableau (each card at its stacked y)
+        for col_i, column in enumerate(self.tableau):
+            x = TABLEAU_X0 + col_i * TABLEAU_GAP_X
+            y = TABLEAU_Y0
+            for c in column:
+                img = c.image if c.face_up else self.card_back
+                cards.append((img, pygame.Rect(x, y, *CARD_SIZE)))
+                y += FACEUP_GAP if c.face_up else FACEDOWN_GAP
+
+        return cards
+
+    def _start_win_animation(self):
+        cards = self._snapshot_visible_cards()
+        self.win_anim = WinAnimation(self.screen, cards)
+
+    def _check_win_and_start(self):
+        if self.win_anim is None and self._is_win():
+            self._start_win_animation()
+
+    def update(self, dt: float):
+    # placeholder for future animations / timers
+        pass
+
+
+    
     # --- Function: handleEvent() --- game.py ----- events -----
     def handle_event(self, event: pygame.event.Event):
-        double = False  # default for non-mousedown events
+        # Block interactions while the win animation is running (except 'N' to deal)
+        if self.win_anim and not self.win_anim.finished:
+            double = False  # default for non-mousedown events
 
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_n:
-            self.new_game()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_n:
+                self.new_game()
+                self.win_anim = None
             return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -137,6 +193,7 @@ class Game:
                     while self.waste:
                         c = self.waste.pop()
                         self.stock.append((c.rank, c.suit))
+                        #self._check_win_and_start()   # <-- add this
                 return
             
             # --- waste area: handle double-click first, else start drag ---
@@ -149,6 +206,7 @@ class Game:
                         if can_stack_on_foundation(self.foundation_top(fi), mv, fi):
                             self.waste.pop()
                             self.foundations[fi].append(moving)
+                            self._check_win_and_start()   # <-- add this
                             break
                     return  # handled double-click
 
@@ -175,6 +233,7 @@ class Game:
                                 self.foundations[fi].append(c)
                                 if self.tableau[col_idx] and not self.tableau[col_idx][-1].face_up:
                                     self.tableau[col_idx][-1].face_up = True
+                                self._check_win_and_start()   # <-- add this
                                 moved = True
                                 break
                 if moved:
@@ -220,6 +279,7 @@ class Game:
                             self.waste.pop()
                         self.foundations[fi].append(moving)
                         placed = True
+                        self._check_win_and_start()   # <-- add this
                         break
 
             # otherwise tableau
@@ -299,3 +359,11 @@ class Game:
             for c in self.drag_cards:
                 c.draw(self.screen, x, y, self.card_back)
                 y += FACEUP_GAP
+        
+        # Safety net: if the board is already in a win state, start the animation
+        if self.win_anim is None and self._is_win():
+            self._start_win_animation()
+
+        # Win celebration overlay (renders on top of the board)
+        if self.win_anim:
+            self.win_anim.draw()
