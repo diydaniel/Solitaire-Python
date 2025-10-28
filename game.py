@@ -38,7 +38,7 @@ def can_stack_on_foundation(dst_top: Tuple[str,str] | None, moving: Tuple[str,st
     tr, ts = dst_top
     return (ms == ts) and (RANK_TO_VAL[mr] == RANK_TO_VAL[tr] + 1)
 
-# --- Object: Game --- game.py
+# --- Object Blue Print: Game --- game.py
 class Game:
     def __init__(self, screen: pygame.Surface):
         self.screen = screen
