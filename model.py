@@ -1,7 +1,7 @@
 # --- model.py ---
 import pygame
 
-# --- Object Blue Print: Card --- model.py
+# --- Object BluePrint: Card --- model.py
 class Card:
     def __init__(self, rank: str, suit: str, image: pygame.Surface, face_up: bool = False):
         self.rank = rank

@@ -1,4 +1,4 @@
-# --- game.py ---
+# --- game.py 
 import random
 import pygame
 from typing import List, Tuple, Dict
@@ -15,33 +15,66 @@ from animations import WinAnimation
 from assets import load_card_images, load_card_back
 from model import Card
 
-# --- Function: isRed() --- game.py/ --- Helpers/ Rules ---
-def is_red(suit: str) -> bool: 
-    return suit in RED_SUITS
+# ---------------------------------------------------------------------------------------------------
+# --- Function: isRed() --- Helpers/ Rules ---
+def is_red(suit: str) -> bool:  # Purpose: Tells you if a suit is a red suit.
+    return suit in RED_SUITS    # How: Returns True if suit is in RED_SUITS (typically {'♥', '♦'}), else False.
 
-# --- Function: canStackOnTableau() --- game.py
-def can_stack_on_tableau(dst_top: Tuple[str,str] | None, moving_top: Tuple[str,str]) -> bool:
+
+# --- Function: canStackOnTableau()
+def can_stack_on_tableau(dst_top: Tuple[str,str] | None, moving_top: Tuple[str,str]) -> bool:   
+    
+    # Purpose: Checks if a card (or a moving pile’s top card) can be placed on a tableau pile.
+
     """Tableau rule: alt color, descending by 1. Empty accepts K."""
+
     if dst_top is None:
+
+        # dst_top: Tuple[str, str] | None — the current top card on the destination tableau pile, or None if the pile is empty.
+            # A card is a tuple (rank, suit) like ('7', '♣').
+                # moving_top: Tuple[str, str] — the top card of what you want to move, e.g. ('6', '♦').
+
         return moving_top[0] == 'K'
-    dr, ds = dst_top
-    mr, ms = moving_top
+
+            # If the destination is empty, only a King ('K') can be placed.
+                # Otherwise, you must place alternating colors and descending by 1 rank.
+    
+    dr, ds = dst_top            # Example: dst_top=('7','♣'), moving_top=('6','♦') → black vs red, 6 is one less than 7 → True.
+    mr, ms = moving_top             # Example: dst_top=None, moving_top=('Q','♥') → empty but not a King → False.
+
+        # How:
+                # If dst_top is None → return moving_top[0] == 'K'.
+                    # Else unpack both cards, then check:
+                        # is_red(ds) != is_red(ms) → colors alternate (red on black or black on red).
+                            # RANK_TO_VAL[mr] == RANK_TO_VAL[dr] - 1 → ranks descend by one (e.g., 6 on 7).
+
     return (is_red(ds) != is_red(ms)) and (RANK_TO_VAL[mr] == RANK_TO_VAL[dr] - 1)
 
-# --- Function: canStackOnFoundation() --- game.py
+
+# --- Function: canStackOnFoundation()
 def can_stack_on_foundation(dst_top: Tuple[str,str] | None, moving: Tuple[str,str], slot_index: int) -> bool:
+
+    # Purpose: Checks if a card can go onto a foundation pile (the four suit piles you build up from Ace to King).
+
     mr, ms = moving
     required_suit = FOUND_SUITS[slot_index]
     if ms != required_suit:                     # must match this slot’s suit
         return False
-    if dst_top is None:
-        return mr == 'A'
+    if dst_top is None:                         # dst_top: Tuple[str, str] | None --- current top card on that foundation pile, or None if empty.
+        return mr == 'A'                        # moving: Tuple[str, str] --- the card you want to place.
     tr, ts = dst_top
     return (ms == ts) and (RANK_TO_VAL[mr] == RANK_TO_VAL[tr] + 1)
 
-# --- Object Blue Print: Game --- game.py
+            # slot_index: int — which foundation pile (0..3), used to pick the required suit from FOUND_SUITS.
+
+# ---------------------------------------------------------------------------------------------------
+# --- Object BluePrint: Game 
 class Game:
     def __init__(self, screen: pygame.Surface):
+
+# ---------------------------------------------------------------------------------------------------
+# --- Class Attributes ---
+
         self.screen = screen
         # assets
         self.card_images = load_card_images()
@@ -69,13 +102,14 @@ class Game:
         self.drag_pos = (0, 0)
         self.last_click_ms = 0
 
-    # --- Function: endDrag() --- game.py ----- state helpers -----
+# ---------------------------------------------------------------------------------------------------
+    # --- Method: endDrag() --- state helpers ---
     def end_drag(self):
         self.dragging = False
         self.drag_from = ("", None)
         self.drag_cards = []
 
-    # --- Function: foundationTop() --- game.py
+    # --- Method: foundationTop()
     def foundation_top(self, i: int) -> Tuple[str,str] | None:
         pile = self.foundations[i]
         if not pile:
@@ -83,7 +117,7 @@ class Game:
         top = pile[-1]
         return (top.rank, top.suit)
     
-    # --- Function: dealCards() --- game.py
+    # --- Method: dealCards()
     def deal_cards(self):
         for col in range(7):
             for _ in range(col + 1):
@@ -91,20 +125,20 @@ class Game:
                 self.tableau[col].append(Card(r, s, self.card_images[(r,s)], face_up=False))
             self.tableau[col][-1].face_up = True
 
-    # --- Function: newGame() --- game.py
+    # --- Method: newGame()
     def new_game(self):
+        self.win_anim = None
         self.deck = [(r, s) for s in SUITS for r in RANKS]
         random.shuffle(self.deck)
         for col in self.tableau: col.clear()
         for f in self.foundations: f.clear()
-        self.win_anim = None
         self.waste.clear()
         self.stock.clear()
         self.deal_cards()
         self.stock.extend(self.deck)
         self.deck.clear()
 
-    # --- Function: columnHitTest() --- game.py ----- hit testing -----
+    # --- Method: columnHitTest() ----- hit testing -----
     def column_hit_test(self, mx, my) -> Tuple[int, int]:
         for col_idx, col in enumerate(self.tableau):
             x = TABLEAU_X0 + col_idx * TABLEAU_GAP_X
@@ -117,11 +151,12 @@ class Game:
                 y += h
         return (-1, -1)
     
-    #--- Win animation ---
+    # --- Method: Win animation
     def _is_win(self) -> bool:
         """Win if all 4 foundations are complete (13 each)."""
         return all(len(pile) == 13 for pile in self.foundations)
 
+    # --- Method: Win animation
     def _snapshot_visible_cards(self) -> list[tuple[pygame.Surface, pygame.Rect]]:
         """
         Build (image, rect) tuples using the same coordinates as draw_*().
@@ -152,22 +187,27 @@ class Game:
                 y += FACEUP_GAP if c.face_up else FACEDOWN_GAP
 
         return cards
+    
+# ---------------------------------------------------------------------------------------------------
 
+    # --- Method: Win animation
     def _start_win_animation(self):
         cards = self._snapshot_visible_cards()
         self.win_anim = WinAnimation(self.screen, cards)
 
+    # --- Method: Win animation
     def _check_win_and_start(self):
         if self.win_anim is None and self._is_win():
             self._start_win_animation()
 
+    # --- Method: Win animation
     def update(self, dt: float):
     # placeholder for future animations / timers
         pass
-
-
     
-    # --- Function: handleEvent() --- game.py ----- events -----
+# ---------------------------------------------------------------------------------------------------
+
+    # --- Method: handleEvent() ----- events -----
     def handle_event(self, event: pygame.event.Event):
         # Block interactions while the win animation is running (except 'N' to deal)
         if self.win_anim and not self.win_anim.finished:
@@ -314,7 +354,7 @@ class Game:
             # end drag always
             self.end_drag()
 
-    # ----- drawing -----
+    # ----- Method:
     def draw_tableau(self):
         for i, column in enumerate(self.tableau):
             x = TABLEAU_X0 + i * TABLEAU_GAP_X
@@ -323,6 +363,7 @@ class Game:
                 card.draw(self.screen, x, y, self.card_back)
                 y += FACEUP_GAP if card.face_up else FACEDOWN_GAP
 
+    # ----- Method:
     def draw_foundations(self):
         font = pygame.font.SysFont("Arial", 24, bold=True)
         for i in range(4):
@@ -337,7 +378,8 @@ class Game:
                 label = font.render(symbol, True, SUIT_COLOR[suit])
                 self.screen.blit(label, (x + CARD_SIZE[0]//2 - label.get_width()//2,
                                          y + CARD_SIZE[1]//2 - label.get_height()//2))
-                
+
+    # ----- Method:
     def draw(self):
         self.screen.fill(GREEN)
         # stock
@@ -365,5 +407,5 @@ class Game:
             self._start_win_animation()
 
         # Win celebration overlay (renders on top of the board)
-        if self.win_anim:
+        if self.win_anim and not self.win_anim.finished:
             self.win_anim.draw()
