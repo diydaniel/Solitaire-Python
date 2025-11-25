@@ -68,45 +68,17 @@ pip install -r requirements.txt
 
     python src/main.py
 
-🧠 How It Works (Technical Walkthrough)
-    Game Loop
+📄 License
 
-    Runs at FPS = 60:
+ GNU GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
 
-    Handles events (mouse, keyboard)
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
 
-    Updates card states (dragging, flipping)
+👤 Author
 
-    Renders screen
+Daniel Cannon (codejacket.io)
 
-    Card Rendering
-
-    Each card is a pygame.Surface loaded from assets/cards/??.png.
-
-    Cards are layered with:
-
-    z-index
-
-    Current pile index
-
-    Whether it is being dragged
-
-    Rules Engine
-
-    game.py enforces:
-
-    Valid moves between tableaus
-
-    Only kings may move to empty rows
-
-    Foundations must build ascending by suit
-
-    Flipping rules for waste/stock
-
-    Animations
-
-    Designed using:
-
-    Incremental frame-based movement
-
-    Smooth transitions for flips and slides
+Portfolio: https://codejacket.io
