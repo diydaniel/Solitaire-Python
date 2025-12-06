@@ -1,4 +1,5 @@
 # --- app.py
+import os
 import pygame as pg
 
 from . import config
@@ -144,9 +145,12 @@ def run_one_game_session(screen: pg.Surface, variant):
 
 
 def main():
+    # Center the window on the screen
+    os.environ["SDL_VIDEO_CENTERED"] = "1"
+
     pg.init()
-    MENU_SIZE = (960, 540)
-    pg.display.set_caption("codejacket.io - Solitaire")
+    MENU_SIZE = (1000, 550)
+    pg.display.set_caption("codejacket.io")
 
     app_running = True
     while app_running:

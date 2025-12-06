@@ -22,6 +22,7 @@ from .config import (
     TABLEAU_X0,
     TABLEAU_STEP_X,
     TABLEAU_Y0,
+    SCREEN_WIDTH,      # <-- make sure these exist
     SCREEN_HEIGHT,
     FACEDOWN_GAP,
     FOUND_SUITS,
@@ -42,6 +43,10 @@ class KlondikeGame(BaseVariantGame):
         self.card_images = card_images      # reuse passed-in dict
         self.card_back = load_card_back()
         self.win_anim: WinAnimation | None = None
+
+        # casino-style table logo
+        self.table_logo: pg.Surface | None = None
+        self._build_table_logo()   # <-- build it once
 
         # piles
         self.tableau: List[List[Card]] = [[] for _ in range(7)]
@@ -80,7 +85,7 @@ class KlondikeGame(BaseVariantGame):
         if dupes:
             print("WARNING: duplicate logical cards in deck:", dupes)
 
-    
+    # --- Table Helpers
     def foundation_top(self, i: int) -> Tuple[str, str] | None:
         """
         Return the (rank, suit) of the top card in foundation pile i,
@@ -139,6 +144,43 @@ class KlondikeGame(BaseVariantGame):
                     return (col_idx, i if c.face_up else -1)
                 y += h
         return (-1, -1)
+    
+    def _build_table_logo(self) -> None:
+        """
+        Build a casino-style felt logo as a surface we can blit
+        under the cards.
+        """
+        font_big = pg.font.SysFont("georgia", 48, bold=True)
+        font_small = pg.font.SysFont("georgia", 24, bold=True)
+
+        text1 = font_big.render("codejacket.io", True, (240, 240, 240))
+        text2 = font_small.render("SOLITAIRE", True, (230, 210, 120))
+
+        padding_x = 32
+        padding_y = 18
+
+        width = max(text1.get_width(), text2.get_width()) + padding_x * 2
+        height = text1.get_height() + text2.get_height() + padding_y * 3
+
+        surf = pg.Surface((width, height), pg.SRCALPHA)
+
+        rect = surf.get_rect()
+        # soft oval background
+        pg.draw.ellipse(surf, (0, 0, 0, 70), rect)
+        inner = rect.inflate(-12, -8)
+        pg.draw.ellipse(surf, (255, 255, 255, 40), inner)
+
+        # center text
+        y = padding_y
+        surf.blit(text1, (rect.centerx - text1.get_width() // 2, y))
+        y += text1.get_height() + 10
+        surf.blit(text2, (rect.centerx - text2.get_width() // 2, y))
+
+        # slightly transparent so it doesn't fight the cards
+        surf.set_alpha(120)
+
+        self.table_logo = surf
+
     
 # ---------------------------------------------------------------------------------------------------
 # --- Animation
@@ -441,6 +483,15 @@ class KlondikeGame(BaseVariantGame):
 
     def draw(self) -> None:
         self.screen.fill(GREEN)
+
+        # --- casino-style table logo on the felt ---
+        if self.table_logo is not None:
+            logo_rect = self.table_logo.get_rect()
+            logo_rect.center = (
+                SCREEN_WIDTH // 2,
+                int(SCREEN_HEIGHT * 0.80),  # adjust 0.60 up/down to taste
+            )
+            self.screen.blit(self.table_logo, logo_rect)
 
         if self.deal_anim_active:
             # While dealing: show empty stock outline, foundations, and flying cards
