@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling>=1.17.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "solitaire-game"
+version = "0.1.0"
+description = "A Pygame-based Klondike Solitaire game."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GNU" }
+authors = [
+  { name = "Daniel Cannon", email = "info@codejacket.io" }
+]
+
+dependencies = [
+  "pygame>=2.5.0",
+]
+
+# This makes `solitaire` a proper importable package under src/
+[project.urls]
+Homepage = "https://github.com/diydaniel/Solitaire-Python"
+
+[project.scripts]
+solitaire = "solitaire.app:main"
+
+[tool.hatch.build]
+packages = ["src/solitaire"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "README.md", "LICENSE"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/solitaire"]
