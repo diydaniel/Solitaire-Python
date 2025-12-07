@@ -1,4 +1,4 @@
-# --- spider.py ---------------------------------------------------
+# --- spider.py 
 from __future__ import annotations
 
 from typing import List
@@ -14,10 +14,18 @@ from .config import (
     CARD_SIZE,
     FACEUP_GAP,
     FACEDOWN_GAP,
-    TABLEAU_Y0,
     RANK_TO_VAL,
     RANKS,
 )
+
+SPIDER_COLS = 10
+
+# EDIT THESE NUMBERS to change spacing
+SPIDER_EDGE_MARGIN_FACTOR = 1.8   # how far columns stay away from left/right edges (× card width)
+SPIDER_COL_GAP_MIN_FACTOR = 0.3  # minimum gap between columns (× card width)
+SPIDER_COL_GAP_MAX_FACTOR = 1.0  # maximum gap between columns (× card width)
+SPIDER_STOCK_TO_TABLEAU_GAP = 60  # pixels; increase for more space
+
 
 
 class SpiderGame(BaseVariantGame):
@@ -95,21 +103,49 @@ class SpiderGame(BaseVariantGame):
         self.drag_stack = []
         self.drag_from_col = None
 
-    # ---------- layout / hit-testing ----------
+    # ---------- layout tuning for Spider ----------
+        # ---------- layout helpers ----------
+    def _tableau_top_y(self) -> int:
+        """Top Y position for the 10 columns."""
+        stock_y = STOCK_POS[1]
+        return stock_y + CARD_SIZE[1] + SPIDER_STOCK_TO_TABLEAU_GAP
 
+    
     def _column_x(self, col_idx: int) -> int:
         """
-        Compute X for a Spider column so 10 columns are centered,
-        independent of the Klondike 7-column layout.
+        X position for a Spider column.
+
+        - 10 columns
+        - centered as a block in the window
+        - spacing controlled by the SPIDER_* constants above
         """
         card_w, _ = CARD_SIZE
         screen_w, _ = self.screen.get_size()
-        cols = 10
-        gap_x = int(card_w * 0.4)
+        cols = SPIDER_COLS  # 10
 
-        total_w = cols * card_w + (cols - 1) * gap_x
-        x0 = (screen_w - total_w) // 2
-        return x0 + col_idx * (card_w + gap_x)
+        # 1) HORIZONTAL MARGIN TO WINDOW EDGES  --------------------
+        #    Increase SPIDER_EDGE_MARGIN_FACTOR for more edge space
+        edge_margin = int(card_w * SPIDER_EDGE_MARGIN_FACTOR)
+
+        # how much width is available for the block of 10 columns
+        available = screen_w - 2 * edge_margin
+
+            # 2) GAP BETWEEN COLUMNS  ----------------------------------
+        #    Gap is clamped between MIN and MAX factors
+        if cols > 1:
+            ideal_gap = (available - cols * card_w) / (cols - 1)
+            min_gap = int(card_w * SPIDER_COL_GAP_MIN_FACTOR)
+            max_gap = int(card_w * SPIDER_COL_GAP_MAX_FACTOR)
+            gap_x = max(min_gap, min(max_gap, ideal_gap))
+        else:
+            gap_x = 0
+
+        block_w = cols * card_w + (cols - 1) * gap_x
+        x0 = (screen_w - block_w) // 2  # center the whole block
+
+        return int(x0 + col_idx * (card_w + gap_x))
+
+
 
     def _column_hit_test(self, mx: int, my: int) -> tuple[int, int]:
         """
@@ -118,7 +154,7 @@ class SpiderGame(BaseVariantGame):
         """
         for col_idx, col in enumerate(self.tableau):
             x = self._column_x(col_idx)
-            y = TABLEAU_Y0
+            y = self._tableau_top_y()
             for i, c in enumerate(col):
                 h = FACEUP_GAP if c.face_up else FACEDOWN_GAP
                 rect = pg.Rect(
@@ -184,10 +220,16 @@ class SpiderGame(BaseVariantGame):
                     ok = False
                     break
 
-            if ok:
-                # Remove the run and count it
-                del self.tableau[col_idx][-13:]
-                self.completed_runs += 1
+                if ok:
+                    # Remove the run and count it
+                    del self.tableau[col_idx][-13:]
+                    self.completed_runs += 1
+
+                    # 🔹 Flip the new top card if it exists and is face down
+                    col_after = self.tableau[col_idx]
+                    if col_after and not col_after[-1].face_up:
+                        col_after[-1].face_up = True
+
 
     def _deal_from_stock(self) -> None:
         """
@@ -242,7 +284,7 @@ class SpiderGame(BaseVariantGame):
 
                     # compute top card position for offset
                     top_x = self._column_x(col_idx)
-                    top_y = TABLEAU_Y0
+                    top_y = self._tableau_top_y()
                     for i in range(card_idx):
                         c = col[i]
                         top_y += FACEUP_GAP if c.face_up else FACEDOWN_GAP
@@ -261,9 +303,9 @@ class SpiderGame(BaseVariantGame):
                 x = self._column_x(col_idx)
                 area = pg.Rect(
                     x,
-                    TABLEAU_Y0,
+                    self._tableau_top_y(),
                     CARD_SIZE[0],
-                    self.screen.get_height() - TABLEAU_Y0,
+                    self.screen.get_height() ,
                 )
                 if area.collidepoint(mx, my):
                     moving_top = self.drag_stack[0]
@@ -292,7 +334,7 @@ class SpiderGame(BaseVariantGame):
     def _draw_tableau(self) -> None:
         for col_idx, col in enumerate(self.tableau):
             x = self._column_x(col_idx)
-            y = TABLEAU_Y0
+            y = self._tableau_top_y()
             for c in col:
                 c.draw(self.screen, x, y, self.card_back)
                 y += FACEUP_GAP if c.face_up else FACEDOWN_GAP

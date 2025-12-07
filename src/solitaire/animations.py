@@ -3,171 +3,137 @@ import pygame
 import random
 import math
 
-# ---------------------------------------------------------------------------------------------------
-# --- Object Blue Print: WinAnimation
 class WinAnimation:
-
     """
-    Minimalist win animation:
-      - each card floats up with a cosine ease and fades out
-      - leaves soft trailing sparkles that drift upward and fade
-      - dims the scene with a translucent overlay and draws 'YOU WIN'
+    Card rain win animation.
+
     Usage:
-      win = WinAnimation(screen, [(img, rect), ...])
-      ...
-      if win and not win.finished:
-          win.draw()   # updates & renders on top of your normal scene
+        win = WinAnimation(screen, [(img, rect), ...])
+        ...
+        if win and not win.finished:
+            win.draw()   # updates & renders on top of your normal scene
     """
 
-    DURATION_MS = 2000          # per-card animation time
-    PER_CARD_DELAY_MS = 150     # staggering
-    OVERLAY_ALPHA = 170         # 0..255
-    TRAIL_SPAWN_ALPHA = (180, 220)
-    TRAIL_FADE = 4              # alpha per frame
-    TRAIL_RISE = 1.0            # px per frame
-    TRAIL_RADIUS = 3
-    MAX_Y_OFFSET = 500          # peak float distance (px)
+    DURATION_MS = 30000          # total time of the animation
+    NUM_DROPS = 80              # how many cards falling at once
+    MIN_SPEED = 180             # px / second
+    MAX_SPEED = 420             # px / second
+    FADE_ALPHA = 35             # how much to darken each frame (0..255)
 
-# ---------------------------------------------------------------------------------------------------
     def __init__(self, screen, cards):
-
         """
         cards: list of (image_surface, rect) for visible cards.
-               rects are only read to capture base positions (not mutated).
+               We only need the surfaces; rects are ignored here.
         """
-
         self.screen = screen
         self.finished = False
 
-        # cache card snapshots & schedule
-        now = pygame.time.get_ticks()
-        self.start_time = now
-        self.cards = []  # list of dicts with base state
-        delay = 0
-        for img, rect in cards:
-            self.cards.append({
-                "img": img.convert_alpha(),
-                "base_center": rect.center,   # immutable base
-                "w": rect.width,
-                "h": rect.height,
-                "delay": delay,               # ms
-            })
-            delay += self.PER_CARD_DELAY_MS
+        self.start_time = pygame.time.get_ticks()
+        self.w, self.h = self.screen.get_size()
 
-        self.trails = []  # list of (x, y, alpha)
-        self._trail_circle = self._make_trail_circle(self.TRAIL_RADIUS)
-        self._overlay = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        # Extract card faces; fall back to simple white rect if none.
+        self.card_surfs = [img.convert_alpha() for (img, _rect) in cards]
+        if not self.card_surfs:
+            dummy = pygame.Surface((80, 110), pygame.SRCALPHA)
+            dummy.fill((255, 255, 255, 255))
+            self.card_surfs = [dummy]
 
-        # pre-allocate a rect to avoid churn
-        self._work_rect = pygame.Rect(0, 0, 0, 0)
+        # Semi-transparent overlay for trail / dim effect
+        self.fade_surf = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        self.fade_surf.fill((0, 0, 0, self.FADE_ALPHA))
 
-# ---------------------------------------------------------------------------------------------------
-    # ---------- helpers ----------
-    def _make_trail_circle(self, r):
-        s = pygame.Surface((2*r, 2*r), pygame.SRCALPHA)
-        pygame.draw.circle(s, (255, 255, 255, 255), (r, r), r)
-        return s
+        # Precreate drops
+        self.drops = []
+        for _ in range(self.NUM_DROPS):
+            self.drops.append(self._make_drop())
 
-    def _card_progress(self, now_ms, delay_ms):
-        t = (now_ms - self.start_time) - delay_ms
-        if t <= 0:
-            return 0.0
-        return min(1.0, t / self.DURATION_MS)
+        # Fonts for center text
+        self.font_big = pygame.font.Font(None, 80)
+        self.font_small = pygame.font.Font(None, 28)
 
-    def _ease_cos(self, p):
-        # 0..1 -> 0..1 smooth (cosine)
-        return (1.0 - math.cos(p * math.pi)) * 0.5
-    
-# ---------------------------------------------------------------------------------------------------
-    # ---------- API ----------
+    # ------------------------------------------------------------------ helpers
+
+    def _make_drop(self):
+        """Create a single falling card."""
+        img = random.choice(self.card_surfs)
+        cw, ch = img.get_size()
+
+        # Align x to a loose "column" grid to feel matrix-like
+        column_width = cw + 10
+        cols = max(1, self.w // column_width)
+        col_index = random.randint(0, cols - 1)
+        x = col_index * column_width + (column_width - cw) // 2
+
+        # Start above the screen
+        y = random.randint(-self.h, -ch)
+
+        speed = random.uniform(self.MIN_SPEED, self.MAX_SPEED)
+        return {
+            "img": img,
+            "x": float(x),
+            "y": float(y),
+            "speed": speed,
+        }
+
+    def _update_drops(self, dt):
+        """Move each card down; respawn when it leaves the screen."""
+        for d in self.drops:
+            d["y"] += d["speed"] * dt
+            if d["y"] > self.h:
+                # respawn above
+                new_drop = self._make_drop()
+                d["img"] = new_drop["img"]
+                d["x"] = new_drop["x"]
+                d["y"] = new_drop["y"]
+                d["speed"] = new_drop["speed"]
+
+    def _draw_drops(self):
+        """Draw all falling cards."""
+        for d in self.drops:
+            img = d["img"]
+            self.screen.blit(img, (int(d["x"]), int(d["y"])))
+
+    def _draw_overlay_text(self):
+        """Draw 'YOU WIN' text in the center."""
+        r = self.screen.get_rect()
+
+        t1 = self.font_big.render("YOU WIN", True, (255, 255, 255))
+        t2 = self.font_small.render("Press N for a new game", True, (220, 220, 220))
+
+        self.screen.blit(t1, t1.get_rect(center=(r.centerx, r.centery - 24)))
+        self.screen.blit(t2, t2.get_rect(center=(r.centerx, r.centery + 22)))
+
+    # ------------------------------------------------------------------ main API
+
     def draw(self):
-        """Update positions and render the whole celebration on top of the scene."""
+        """
+        Update & render the win animation on top of whatever was already
+        drawn to the screen (your game board).
+        """
         if self.finished:
-            # Still draw the overlay text one last time so it stays visible.
-            self._draw_overlay_and_text()
+            # Draw a final dim + text pass so the message stays.
+            self.screen.blit(self.fade_surf, (0, 0))
+            self._draw_overlay_text()
             return
 
         now = pygame.time.get_ticks()
-        all_done = True
+        elapsed = now - self.start_time
 
-        # cards
-        for c in self.cards:
-            p = self._card_progress(now, c["delay"])
-            if p < 1.0:
-                all_done = False
+        # Convert ms to seconds for speed math
+        dt = pygame.time.get_ticks() - getattr(self, "_last_ticks", now)
+        self._last_ticks = now
+        dt_sec = dt / 1000.0 if dt > 0 else 0.0
 
-            if p <= 0.0:
-                continue
+        # Slightly darken previous frame -> trail effect
+        self.screen.blit(self.fade_surf, (0, 0))
 
-            # eased vertical travel and alpha fade
-            eased = self._ease_cos(p)
-            y_off = -self.MAX_Y_OFFSET * eased
-            alpha = max(0, 255 - int(p * 255))
+        # Update and draw falling card faces
+        self._update_drops(dt_sec)
+        self._draw_drops()
 
-            # position relative to base center
-            cx, cy = c["base_center"]
-            x = int(cx - c["w"] // 2)
-            y = int(cy - c["h"] // 2 + y_off)
+        # Draw center text
+        self._draw_overlay_text()
 
-            # glow behind the card (cheaper than blur)
-            glow = pygame.Surface((c["w"], c["h"]), pygame.SRCALPHA)
-            glow.fill((255, 255, 255, int(alpha * 0.5)))
-            self.screen.blit(glow, (x, y))
-
-            # card itself with fade
-            img = c["img"]
-            if alpha < 255:
-                img = img.copy()
-                img.set_alpha(alpha)
-            self.screen.blit(img, (x, y))
-
-            # spawn a sparkle at the current center
-            if alpha > 0 and (p < 1.0):
-                tx = int(cx)
-                ty = int(cy + y_off)
-                self.trails.append((
-                    tx,
-                    ty,
-                    random.randint(*self.TRAIL_SPAWN_ALPHA)
-                ))
-
-        # trails (render to screen with alpha via pre-made circle)
-        if self.trails:
-            next_trails = []
-            for (x, y, a) in self.trails:
-                if a <= 0:
-                    continue
-                s = self._trail_circle.copy()
-                s.set_alpha(a)
-                self.screen.blit(s, (x - self.TRAIL_RADIUS, y - self.TRAIL_RADIUS))
-                a2 = a - self.TRAIL_FADE
-                y2 = y - self.TRAIL_RISE
-                if a2 > 0:
-                    next_trails.append((x, y2, a2))
-            self.trails = next_trails
-            if next_trails:
-                all_done = False
-
-        # overlay + text last
-        self._draw_overlay_and_text()
-
-        # finished?
-        if all_done:
+        # End condition
+        if elapsed >= self.DURATION_MS:
             self.finished = True
-
-# ---------------------------------------------------------------------------------------------------
-    def _draw_overlay_and_text(self):
-        # dim without erasing your scene
-        self._overlay.fill((0, 0, 0, self.OVERLAY_ALPHA))
-        self.screen.blit(self._overlay, (0, 0))
-
-        # centered text
-        font_big = pygame.font.Font(None, 80)
-        font_small = pygame.font.Font(None, 28)
-        r = self.screen.get_rect()
-
-        t1 = font_big.render("YOU WIN", True, (255, 255, 255))
-        t2 = font_small.render("Press N to deal a new game", True, (230, 230, 230))
-
-        self.screen.blit(t1, t1.get_rect(center=(r.centerx, r.centery - 24)))
-        self.screen.blit(t2, t2.get_rect(center=(r.centerx, r.centery + 26)))

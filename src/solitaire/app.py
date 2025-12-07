@@ -158,6 +158,8 @@ def main():
         screen = pg.display.set_mode(MENU_SIZE, 0)
         menu = Menu(screen)
         choice = menu.run()
+        variant = menu.selected_variant
+
 
         if choice == MenuResult.START:
             # Use the variant chosen in the menu

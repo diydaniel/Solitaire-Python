@@ -1,3 +1,4 @@
+# --- config.py
 from __future__ import annotations
 from typing import Tuple
 import pygame as pg
@@ -7,7 +8,7 @@ pg.init()
 GREEN = (0, 128, 0)
 
 # Base sizes (single game window size)
-BASE_SCREEN = (1320, 1000)
+BASE_SCREEN = (1520, 1320)
 BASE_CARD_SIZE = (115, 160)
 
 SUITS = ["hearts", "diamonds", "clubs", "spades"]
